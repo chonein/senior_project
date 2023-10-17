@@ -1,0 +1,6 @@
+{
+    "configuration": "opt=small,usbstack=arduino,debug=off",
+    "board": "adafruit:samd:adafruit_feather_m0",
+    "sketch": "remote-feather.ino",
+    "port": "/dev/tty.usbmodem11301"
+}
