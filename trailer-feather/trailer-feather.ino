@@ -29,10 +29,10 @@ void setup() {
   pinMode(RFM69_RST, OUTPUT);
   digitalWrite(RFM69_RST, LOW);
 
-  #ifdef DEBUG
+#ifdef DEBUG
   Serial.println("Feather RFM69 TX Test!");
   Serial.println();
-  #endif
+#endif
 
   // manual reset
   digitalWrite(RFM69_RST, HIGH);
@@ -41,9 +41,9 @@ void setup() {
   delay(10);
 
   if (!rf69.init()) {
-    #ifdef DEBUG
+#ifdef DEBUG
     Serial.println("RFM69 radio init failed");
-    #endif
+#endif
     while (1)
       ;
   }
@@ -51,9 +51,9 @@ void setup() {
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM (for
   // low power module) No encryption
   if (!rf69.setFrequency(RF69_FREQ)) {
-    #ifdef DEBUG
+#ifdef DEBUG
     Serial.println("setFrequency failed");
-    #endif
+#endif
   }
 
   // If you are using a high power RF69 eg RFM69HW, you *must* set a Tx power
@@ -61,15 +61,15 @@ void setup() {
   rf69.setTxPower(
       14, true); // range from 14-20 for power, 2nd arg must be true for 69HCW
 
-  // The encryption key has to be the same as the one in the server
-  //   uint8_t key[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-  //                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-  //   rf69.setEncryptionKey(key);
-  #ifdef DEBUG
+// The encryption key has to be the same as the one in the server
+//   uint8_t key[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+//                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+//   rf69.setEncryptionKey(key);
+#ifdef DEBUG
   Serial.print("RFM69 radio @");
   Serial.print((int)RF69_FREQ);
   Serial.println(" MHz");
-  #endif
+#endif
 }
 
 /**
