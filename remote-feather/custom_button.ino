@@ -3,10 +3,18 @@
 const unsigned BUTTON_DEBOUNCE_TIME = 300;
 const unsigned BUTTON_DOWN_DEBOUNCE_TIME = 100;
 
+struct button buttons[NUM_BUTTONS];
 /**
  * @brief initializes button on BIG_BUTTON_PIN
  */
-void init_btn() { pinMode(BIG_BUTTON_PIN, INPUT_PULLUP); }
+void init_btn() {
+  buttons[BIG_GREEN_IDX].pin = BIG_GREEN_BUTTON_PIN;
+  buttons[BIG_RED_IDX].pin = BIG_RED_BUTTON_PIN;
+
+  for (struct button button : buttons) {
+    pinMode(button.pin, INPUT_PULLUP);
+  }
+}
 
 /**
  * @brief Gets the button state. Builtin debouncing
@@ -14,54 +22,52 @@ void init_btn() { pinMode(BIG_BUTTON_PIN, INPUT_PULLUP); }
  * no new clicks are sent if button is hold
  * @return uint8_t true when button is click. otherwise false
  */
-uint8_t get_btn() {
-  static unsigned long button_clicked_time = 0;
-  static uint8_t button_clicked = 0;
-  static STATE button_state = WAIT_FOR_BUTTON_DOWN;
+uint8_t get_btn(uint8_t button_idx) {
+  struct button b = buttons[button_idx];
 
-  switch (button_state) {
+  switch (b.button_state) {
   case WAIT_FOR_BUTTON_DOWN:
-    if (!digitalRead(BIG_BUTTON_PIN)) {
+    if (!digitalRead(b.pin)) {
       // button clicked
-      button_state = BUTTON_DOWN_DEBOUNCE;
-      button_clicked_time = millis();
+      b.button_state = BUTTON_DOWN_DEBOUNCE;
+      b.button_clicked_time = millis();
     }
     break;
 
   case BUTTON_DOWN_DEBOUNCE:
-    if (millis() - button_clicked_time > 10) {
+    if (millis() - b.button_clicked_time > 10) {
       // after 10 ms check if button still clicked
-      if (!digitalRead(BIG_BUTTON_PIN)) {
+      if (!digitalRead(b.pin)) {
         // button still clicked. register click
-        button_state = WAIT_FOR_BUTTON_UP;
+        b.button_state = WAIT_FOR_BUTTON_UP;
         return 1;
       } else {
         // button not clicked. ignore click
-        button_state = WAIT_FOR_BUTTON_DOWN;
+        b.button_state = WAIT_FOR_BUTTON_DOWN;
       }
     }
     break;
 
   case WAIT_FOR_BUTTON_UP:
-    if (digitalRead(BIG_BUTTON_PIN) &&
-        millis() - button_clicked_time > BUTTON_DOWN_DEBOUNCE_TIME) {
+    if (digitalRead(b.pin) &&
+        millis() - b.button_clicked_time > BUTTON_DOWN_DEBOUNCE_TIME) {
       // button raised
-      if (millis() - button_clicked_time > BUTTON_DEBOUNCE_TIME) {
-        button_state = WAIT_FOR_BUTTON_DOWN;
+      if (millis() - b.button_clicked_time > BUTTON_DEBOUNCE_TIME) {
+        b.button_state = WAIT_FOR_BUTTON_DOWN;
       } else {
-        button_state = WAIT_FOR_DEBOUNCE;
+        b.button_state = WAIT_FOR_DEBOUNCE;
       }
     }
     break;
 
   case WAIT_FOR_DEBOUNCE:
-    if (millis() - button_clicked_time > BUTTON_DEBOUNCE_TIME) {
-      button_state = WAIT_FOR_BUTTON_DOWN;
+    if (millis() - b.button_clicked_time > BUTTON_DEBOUNCE_TIME) {
+      b.button_state = WAIT_FOR_BUTTON_DOWN;
     }
     break;
 
   default:
-    button_state = WAIT_FOR_BUTTON_DOWN;
+    b.button_state = WAIT_FOR_BUTTON_DOWN;
     break;
   }
 
