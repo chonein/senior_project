@@ -11,6 +11,9 @@
 
 const uint8_t BUTTON_GREEN_CLICK = 0x10;
 const uint8_t BUTTON_RED_CLICK = 0x20;
+#define BATTERY_FLAG 0x30
+
+#define DEBUG 0
 
 // Singleton instance of the radio driver
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
@@ -26,8 +29,10 @@ void setup() {
   pinMode(RFM69_RST, OUTPUT);
   digitalWrite(RFM69_RST, LOW);
 
+  #ifdef DEBUG
   Serial.println("Feather RFM69 TX Test!");
   Serial.println();
+  #endif
 
   // manual reset
   digitalWrite(RFM69_RST, HIGH);
@@ -36,7 +41,9 @@ void setup() {
   delay(10);
 
   if (!rf69.init()) {
+    #ifdef DEBUG
     Serial.println("RFM69 radio init failed");
+    #endif
     while (1)
       ;
   }
@@ -44,7 +51,9 @@ void setup() {
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM (for
   // low power module) No encryption
   if (!rf69.setFrequency(RF69_FREQ)) {
+    #ifdef DEBUG
     Serial.println("setFrequency failed");
+    #endif
   }
 
   // If you are using a high power RF69 eg RFM69HW, you *must* set a Tx power
@@ -56,10 +65,11 @@ void setup() {
   //   uint8_t key[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
   //                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
   //   rf69.setEncryptionKey(key);
-
+  #ifdef DEBUG
   Serial.print("RFM69 radio @");
   Serial.print((int)RF69_FREQ);
   Serial.println(" MHz");
+  #endif
 }
 
 /**
@@ -67,15 +77,46 @@ void setup() {
  *
  * @return uint8_t flag. if no flag, return 0
  */
-uint8_t receiveFlag() {
+void *processRfm69Data() {
   if (rf69.available()) {
     static char buff[RH_RF69_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buff);
     if (rf69.recv((uint8_t *)buff, &len)) {
-      return buff[len - 1];
+      if (len > 0) {
+        uint8_t flag = buff[0];
+        switch (flag) {
+        case BUTTON_GREEN_CLICK:
+          // Serial.println("Green button clicked");
+          Serial.write(buff, len);
+          Blink(LED, 50, 1);
+          break;
+
+        case BUTTON_RED_CLICK:
+          // Serial.println("Red button clicked");
+          Serial.write(buff, len);
+          Blink(LED, 50, 1);
+          break;
+
+        case BATTERY_FLAG:
+          if (len == 5) {
+            float battery_level;
+            memcpy(&battery_level, buff + 1, sizeof(battery_level));
+            Serial.write(buff, len);
+            // Serial.print("VBat: ");
+            // Serial.println(battery_level);
+          }
+          Blink(LED, 50, 2);
+          break;
+
+        default:
+          // Serial.println("Something unknown was sent");
+          Blink(LED, 50, 3);
+          break;
+        }
+      }
     }
   }
-  return 0;
+  return NULL;
 }
 
 void loop() {
@@ -90,21 +131,7 @@ void loop() {
     rf69.waitPacketSent();
   }
   // Now wait for a reply
-  uint8_t flag = receiveFlag();
-
-  if (flag) {
-    // Should be a flag.
-    if (flag == BUTTON_GREEN_CLICK) {
-      Serial.println("Green button clicked");
-      Blink(LED, 50, 1);
-    } else if (flag == BUTTON_RED_CLICK) {
-      Serial.println("Red button clicked");
-      Blink(LED, 50, 2);
-    } else {
-      Serial.println("Something unknown was sent");
-    }
-    // Blink(LED, 50, 3); // blink LED 3 times, 50ms between blinks
-  }
+  processRfm69Data();
 }
 
 void Blink(byte pin, byte delay_ms, byte loops) {

@@ -11,8 +11,12 @@
 #define RFM69_RST 4
 #define LED 13
 
+// battery pin
+#define VBATPIN A7
+
 const uint8_t BUTTON_GREEN_CLICK = 0x10;
 const uint8_t BUTTON_RED_CLICK = 0x20;
+#define BATTERY_FLAG 0x30
 
 // Singleton instance of the radio driver
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
@@ -65,8 +69,6 @@ void setup() {
   Serial.println(" MHz");
 }
 
-void sendFlag(uint8_t flag) { rf69.send(&flag, 1); }
-
 void loop() {
   static char buff[RH_RF69_MAX_MESSAGE_LEN];
   static uint32_t time_checkpoint = 0;
@@ -79,6 +81,8 @@ void loop() {
     prevState = newState;
     time_checkpoint = millis();
   }
+
+  sendBatteryPeriodically();
 
   if (Serial.available()) {
     // read in buff. keep byte available for null byte
@@ -116,4 +120,32 @@ void Blink(byte pin, byte delay_ms, byte loops) {
     digitalWrite(pin, LOW);
     delay(delay_ms);
   }
+}
+
+void sendFlag(uint8_t flag) { rf69.send(&flag, 1); }
+
+void sendBatteryPeriodically() {
+  static uint32_t last_sent_time = 0;
+
+  if (millis() - last_sent_time > 30000) {
+    sendBattery();
+    last_sent_time = millis();
+  }
+}
+
+void sendBattery() {
+  float measuredbat = getBattery();
+  uint8_t batteryPacket[1 + sizeof(measuredbat)];
+  batteryPacket[0] = BATTERY_FLAG;
+  memcpy(batteryPacket + 1, &measuredbat, sizeof(measuredbat));
+  rf69.send(batteryPacket, sizeof(batteryPacket));
+}
+
+float getBattery() {
+  float measuredvbat = analogRead(VBATPIN);
+  measuredvbat *= 2;    // we divided by 2, so multiply back
+  measuredvbat *= 3.3;  // Multiply by 3.3V, our reference voltage
+  measuredvbat /= 1024; // convert to voltage
+  return measuredvbat;
+  // Serial.print("VBat: " ); Serial.println(measuredvbat);
 }
