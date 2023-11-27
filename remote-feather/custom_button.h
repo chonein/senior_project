@@ -13,9 +13,20 @@ enum State {
 };
 typedef enum State STATE;
 
-#define BIG_BUTTON_PIN 5
+struct button {
+  uint32_t pin;
+  unsigned long button_clicked_time = 0;
+  uint8_t button_clicked = 0;
+  STATE button_state = WAIT_FOR_BUTTON_DOWN;
+};
+
+#define NUM_BUTTONS 2
+#define BIG_GREEN_BUTTON_PIN 5
+#define BIG_RED_BUTTON_PIN 6
+#define BIG_GREEN_IDX 0
+#define BIG_RED_IDX 1
 
 void init_btn();
-uint8_t get_btn();
+uint8_t get_btn(uint8_t button_idx);
 
 #endif

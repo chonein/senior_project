@@ -94,8 +94,13 @@ void loop() {
     }
     rf69.waitPacketSent();
   }
-  if (get_btn()) {
+  if (get_btn(BIG_GREEN_IDX)) {
     sendFlag(BUTTON_GREEN_CLICK);
+    Serial.println("Green click");
+  }
+  if (get_btn(BIG_RED_IDX)) {
+    sendFlag(BUTTON_RED_CLICK);
+    Serial.println("Red click");
   }
 
   // Now wait for a reply
