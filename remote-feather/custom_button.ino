@@ -23,51 +23,52 @@ void init_btn() {
  * @return uint8_t true when button is click. otherwise false
  */
 uint8_t get_btn(uint8_t button_idx) {
-  struct button b = buttons[button_idx];
+  struct button *b = buttons + button_idx;
 
-  switch (b.button_state) {
+  switch (b->button_state) {
   case WAIT_FOR_BUTTON_DOWN:
-    if (!digitalRead(b.pin)) {
+    // Serial.println("WAIT_FOR_BUTTON_DOWN");
+    if (!digitalRead(b->pin)) {
       // button clicked
-      b.button_state = BUTTON_DOWN_DEBOUNCE;
-      b.button_clicked_time = millis();
+      b->button_state = BUTTON_DOWN_DEBOUNCE;
+      b->button_clicked_time = millis();
     }
     break;
 
   case BUTTON_DOWN_DEBOUNCE:
-    if (millis() - b.button_clicked_time > 10) {
+    if (millis() - b->button_clicked_time > 10) {
       // after 10 ms check if button still clicked
-      if (!digitalRead(b.pin)) {
+      if (!digitalRead(b->pin)) {
         // button still clicked. register click
-        b.button_state = WAIT_FOR_BUTTON_UP;
+        b->button_state = WAIT_FOR_BUTTON_UP;
         return 1;
       } else {
         // button not clicked. ignore click
-        b.button_state = WAIT_FOR_BUTTON_DOWN;
+        b->button_state = WAIT_FOR_BUTTON_DOWN;
       }
     }
     break;
 
   case WAIT_FOR_BUTTON_UP:
-    if (digitalRead(b.pin) &&
-        millis() - b.button_clicked_time > BUTTON_DOWN_DEBOUNCE_TIME) {
+    if (digitalRead(b->pin) &&
+        millis() - b->button_clicked_time > BUTTON_DOWN_DEBOUNCE_TIME) {
       // button raised
-      if (millis() - b.button_clicked_time > BUTTON_DEBOUNCE_TIME) {
-        b.button_state = WAIT_FOR_BUTTON_DOWN;
+      if (millis() - b->button_clicked_time > BUTTON_DEBOUNCE_TIME) {
+        b->button_state = WAIT_FOR_BUTTON_DOWN;
       } else {
-        b.button_state = WAIT_FOR_DEBOUNCE;
+        b->button_state = WAIT_FOR_DEBOUNCE;
       }
     }
     break;
 
   case WAIT_FOR_DEBOUNCE:
-    if (millis() - b.button_clicked_time > BUTTON_DEBOUNCE_TIME) {
-      b.button_state = WAIT_FOR_BUTTON_DOWN;
+    if (millis() - b->button_clicked_time > BUTTON_DEBOUNCE_TIME) {
+      b->button_state = WAIT_FOR_BUTTON_DOWN;
     }
     break;
 
   default:
-    b.button_state = WAIT_FOR_BUTTON_DOWN;
+    b->button_state = WAIT_FOR_BUTTON_DOWN;
     break;
   }
 
