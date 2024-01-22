@@ -14,9 +14,11 @@
 // battery pin
 #define VBATPIN A7
 
-const uint8_t BUTTON_GREEN_CLICK = 0x10;
-const uint8_t BUTTON_RED_CLICK = 0x20;
+#define BUTTON_GREEN_CLICK 0x10
+#define BUTTON_RED_CLICK 0x20
 #define BATTERY_FLAG 0x30
+#define BUTTON_RED_LONG_CLICK 0x40
+#define BUTTON_GREEN_LONG_CLICK 0x50
 
 // Singleton instance of the radio driver
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
@@ -95,11 +97,19 @@ void loop() {
     rf69.waitPacketSent();
   }
   if (get_btn(BIG_GREEN_IDX)) {
-    sendFlag(BUTTON_GREEN_CLICK);
+    if (get_btn_hold_dur(BIG_GREEN_IDX) > 10000) {
+      sendFlag(BUTTON_GREEN_LONG_CLICK);
+    } else {
+      sendFlag(BUTTON_GREEN_CLICK);
+    }
     Serial.println("Green click");
   }
   if (get_btn(BIG_RED_IDX)) {
-    sendFlag(BUTTON_RED_CLICK);
+    if (get_btn_hold_dur(BIG_RED_IDX) > 10000) {
+      sendFlag(BUTTON_RED_LONG_CLICK);
+    } else {
+      sendFlag(BUTTON_RED_CLICK);
+    }
     Serial.println("Red click");
   }
 

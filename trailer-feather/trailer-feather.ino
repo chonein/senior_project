@@ -9,9 +9,11 @@
 #define RFM69_RST 4
 #define LED 13
 
-const uint8_t BUTTON_GREEN_CLICK = 0x10;
-const uint8_t BUTTON_RED_CLICK = 0x20;
+#define BUTTON_GREEN_CLICK 0x10
+#define BUTTON_RED_CLICK 0x20
 #define BATTERY_FLAG 0x30
+#define BUTTON_RED_LONG_CLICK 0x40
+#define BUTTON_GREEN_LONG_CLICK 0x50
 
 #define DEBUG 0
 
@@ -86,13 +88,9 @@ void *processRfm69Data() {
         uint8_t flag = buff[0];
         switch (flag) {
         case BUTTON_GREEN_CLICK:
-          // Serial.println("Green button clicked");
-          Serial.write(buff, len);
-          Blink(LED, 50, 1);
-          break;
-
         case BUTTON_RED_CLICK:
-          // Serial.println("Red button clicked");
+        case BUTTON_RED_LONG_CLICK:
+        case BUTTON_GREEN_LONG_CLICK:
           Serial.write(buff, len);
           Blink(LED, 50, 1);
           break;

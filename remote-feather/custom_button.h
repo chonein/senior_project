@@ -13,9 +13,12 @@ enum State {
 };
 typedef enum State STATE;
 
+// typedef enum ButtonRes { NOTHING, SHORT_CLICK, LONG_CLICK } ButtonRes;
+
 struct button {
   uint32_t pin;
   unsigned long button_clicked_time = 0;
+  unsigned long hold_duration = 0;
   uint8_t button_clicked = 0;
   STATE button_state = WAIT_FOR_BUTTON_DOWN;
 };
@@ -28,5 +31,6 @@ struct button {
 
 void init_btn();
 uint8_t get_btn(uint8_t button_idx);
+unsigned long get_btn_hold_dur(uint8_t button_idx);
 
 #endif

@@ -41,7 +41,7 @@ uint8_t get_btn(uint8_t button_idx) {
       if (!digitalRead(b->pin)) {
         // button still clicked. register click
         b->button_state = WAIT_FOR_BUTTON_UP;
-        return 1;
+        // return 1;
       } else {
         // button not clicked. ignore click
         b->button_state = WAIT_FOR_BUTTON_DOWN;
@@ -53,11 +53,13 @@ uint8_t get_btn(uint8_t button_idx) {
     if (digitalRead(b->pin) &&
         millis() - b->button_clicked_time > BUTTON_DOWN_DEBOUNCE_TIME) {
       // button raised
-      if (millis() - b->button_clicked_time > BUTTON_DEBOUNCE_TIME) {
+      b->hold_duration = millis() - b->button_clicked_time;
+      if (b->hold_duration > BUTTON_DEBOUNCE_TIME) {
         b->button_state = WAIT_FOR_BUTTON_DOWN;
       } else {
         b->button_state = WAIT_FOR_DEBOUNCE;
       }
+      return 1;
     }
     break;
 
@@ -73,4 +75,8 @@ uint8_t get_btn(uint8_t button_idx) {
   }
 
   return 0;
+}
+
+unsigned long get_btn_hold_dur(uint8_t button_idx) {
+  return buttons[button_idx].hold_duration;
 }
