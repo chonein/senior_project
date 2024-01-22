@@ -15,11 +15,13 @@
 // battery pin
 #define VBATPIN A7
 
-#define BUTTON_GREEN_CLICK 0x10
-#define BUTTON_RED_CLICK 0x20
-#define BATTERY_FLAG 0x30
-#define BUTTON_RED_LONG_CLICK 0x40
-#define BUTTON_GREEN_LONG_CLICK 0x50
+#define BATTERY_FLAG 0xA0
+
+#define RED_BUTTON_PACKET 0
+#define GREEN_BUTTON_PACKET 1
+
+#define PACKET_HOLD_BIT_POS 6
+#define PACKET_NUM_CLICKS_POS 4
 
 #define BIG_GREEN_BUTTON_PIN 5
 #define BIG_RED_BUTTON_PIN 6
@@ -91,25 +93,19 @@ void loop() {
 
   sendBatteryPeriodically();
 
-  if (Serial.available()) {
-    // read in buff. keep byte available for null byte
-    int inputChar = Serial.read();
-    if (inputChar == 'g') {
-      sendFlag(BUTTON_GREEN_CLICK);
-    } else if (inputChar == 'r') {
-      sendFlag(BUTTON_RED_CLICK);
-    }
-    rf69.waitPacketSent();
-  }
   green_button.update();
   red_button.update();
 
   if (green_button.status.clicked) {
     if (green_button.status.hold) {
       Serial.println("hold");
-      sendFlag(BUTTON_GREEN_LONG_CLICK);
+      sendFlag(1 << PACKET_HOLD_BIT_POS |
+               (green_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+               GREEN_BUTTON_PACKET);
     } else {
-      sendFlag(BUTTON_GREEN_CLICK);
+      sendFlag(0 << PACKET_HOLD_BIT_POS |
+               (green_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+               GREEN_BUTTON_PACKET);
     }
     Blink(LED, 50, 1);
     Serial.printf("Green click: %d times\n", green_button.status.num_clicks);
@@ -117,9 +113,13 @@ void loop() {
   if (red_button.status.clicked) {
     if (red_button.status.hold) {
       Serial.println("hold");
-      sendFlag(BUTTON_RED_LONG_CLICK);
+      sendFlag(1 << PACKET_HOLD_BIT_POS |
+               (red_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+               RED_BUTTON_PACKET);
     } else {
-      sendFlag(BUTTON_RED_CLICK);
+      sendFlag(0 << PACKET_HOLD_BIT_POS |
+               (red_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+               RED_BUTTON_PACKET);
     }
     Blink(LED, 50, 1);
     Serial.printf("Red click: %d times\n", red_button.status.num_clicks);
@@ -149,7 +149,10 @@ void Blink(byte pin, byte delay_ms, byte loops) {
   }
 }
 
-void sendFlag(uint8_t flag) { rf69.send(&flag, 1); }
+void sendFlag(uint8_t flag) {
+  rf69.send(&flag, 1);
+  // Serial.printf("%08x\n", flag);
+}
 
 void sendBatteryPeriodically() {
   static uint32_t last_sent_time = 0;

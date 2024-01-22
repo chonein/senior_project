@@ -3,9 +3,9 @@
 To support new buttons, refer to <a href="#button-packet-length-1-byte">Button Packet</a>
 You can also add new packets. The most significant bit of the first byte in new packets is 0 for button packet; thus, ensure that you use 1 as the most significant bit of the first byte.
 
-## Battery Packet (length: 2 bytes)
+## Battery Packet (length: 5 bytes)
 - bytes[0] = 0xA0
-- bytes[1] = battery level as a percentage (between 0 and 100 inclusive)
+- bytes[1:4] = battery voltage 4 byte float
 
 ## Button Packet (length: 1 byte)
 - bit[7] = 0
