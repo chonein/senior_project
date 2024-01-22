@@ -1,7 +1,8 @@
 #include <RH_RF69.h>
 #include <SPI.h>
 
-#include "custom_button.h"
+// #include "custom_button.h"
+#include "custom_button2.h"
 
 #define RF69_FREQ 915.0
 
@@ -20,16 +21,20 @@
 #define BUTTON_RED_LONG_CLICK 0x40
 #define BUTTON_GREEN_LONG_CLICK 0x50
 
+#define BIG_GREEN_BUTTON_PIN 5
+#define BIG_RED_BUTTON_PIN 6
+
 // Singleton instance of the radio driver
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
 
 int16_t packetnum = 0; // packet counter, we increment per xmission
+Button green_button(BIG_GREEN_BUTTON_PIN);
+Button red_button(BIG_RED_BUTTON_PIN);
 
 void setup() {
   Serial.begin(115200);
-  // while (!Serial)
-  //   delay(1); // Wait for Serial Console (comment out line if no computer)
-  init_btn();
+  while (!Serial)
+    delay(100); // Wait for Serial Console (comment out line if no computer)
 
   pinMode(LED, OUTPUT);
   pinMode(RFM69_RST, OUTPUT);
@@ -76,13 +81,13 @@ void loop() {
   static uint32_t time_checkpoint = 0;
   //   delay(1000); // Wait 1 second between transmits, could also 'sleep' here!
 
-  if (millis() - time_checkpoint > 200) {
-    static uint32_t prevState = LOW;
-    uint32_t newState = prevState == LOW ? HIGH : LOW;
-    digitalWrite(LED, newState);
-    prevState = newState;
-    time_checkpoint = millis();
-  }
+  // if (millis() - time_checkpoint > 200) {
+  //   static uint32_t prevState = LOW;
+  //   uint32_t newState = prevState == LOW ? HIGH : LOW;
+  //   digitalWrite(LED, newState);
+  //   prevState = newState;
+  //   time_checkpoint = millis();
+  // }
 
   sendBatteryPeriodically();
 
@@ -96,21 +101,28 @@ void loop() {
     }
     rf69.waitPacketSent();
   }
-  if (get_btn(BIG_GREEN_IDX)) {
-    if (get_btn_hold_dur(BIG_GREEN_IDX) > 10000) {
+  green_button.update();
+  red_button.update();
+
+  if (green_button.status.clicked) {
+    if (green_button.status.hold) {
+      Serial.println("hold");
       sendFlag(BUTTON_GREEN_LONG_CLICK);
     } else {
       sendFlag(BUTTON_GREEN_CLICK);
     }
-    Serial.println("Green click");
+    Blink(LED, 50, 1);
+    Serial.printf("Green click: %d times\n", green_button.status.num_clicks);
   }
-  if (get_btn(BIG_RED_IDX)) {
-    if (get_btn_hold_dur(BIG_RED_IDX) > 10000) {
+  if (red_button.status.clicked) {
+    if (red_button.status.hold) {
+      Serial.println("hold");
       sendFlag(BUTTON_RED_LONG_CLICK);
     } else {
       sendFlag(BUTTON_RED_CLICK);
     }
-    Serial.println("Red click");
+    Blink(LED, 50, 1);
+    Serial.printf("Red click: %d times\n", red_button.status.num_clicks);
   }
 
   // Now wait for a reply
