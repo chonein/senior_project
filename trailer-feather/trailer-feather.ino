@@ -86,15 +86,8 @@ void *processRfm69Data() {
     if (rf69.recv((uint8_t *)buff, &len)) {
       if (len > 0) {
         uint8_t flag = buff[0];
-        switch (flag) {
-        case BUTTON_GREEN_CLICK:
-        case BUTTON_RED_CLICK:
-        case BUTTON_RED_LONG_CLICK:
-        case BUTTON_GREEN_LONG_CLICK:
-          Serial.write(buff, len);
-          Blink(LED, 50, 1);
-          break;
 
+        switch (flag) {
         case BATTERY_FLAG:
           if (len == 5) {
             float battery_level;
@@ -107,8 +100,8 @@ void *processRfm69Data() {
           break;
 
         default:
-          // Serial.println("Something unknown was sent");
-          Blink(LED, 50, 3);
+          Serial.write(buff, len);
+          Blink(LED, 50, 1);
           break;
         }
       }

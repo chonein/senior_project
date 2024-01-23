@@ -35,8 +35,8 @@ Button red_button(BIG_RED_BUTTON_PIN);
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial)
-    delay(100); // Wait for Serial Console (comment out line if no computer)
+  // while (!Serial)
+  //   delay(100); // Wait for Serial Console (comment out line if no computer)
 
   pinMode(LED, OUTPUT);
   pinMode(RFM69_RST, OUTPUT);
