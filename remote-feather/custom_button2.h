@@ -7,7 +7,7 @@
 
 // clicks with 200ms are counted as multiple clicks
 // example: two clicks with 200ms count as double clicks
-#define MULTICLICK_WAIT_DUR 200
+#define MULTICLICK_WAIT_DUR 140
 // maximum number of multiple clicks. for now support up to triple click
 #define MAX_MULTICLICK 3
 #define DEBOUNCE_DUR 10
