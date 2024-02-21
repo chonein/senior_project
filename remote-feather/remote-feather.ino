@@ -19,6 +19,7 @@
 
 #define RED_BUTTON_PACKET 0
 #define GREEN_BUTTON_PACKET 1
+#define TWO_BUTTON_PACKET 2
 
 #define PACKET_HOLD_BIT_POS 6
 #define PACKET_NUM_CLICKS_POS 4
@@ -81,49 +82,10 @@ void setup() {
 void loop() {
   static char buff[RH_RF69_MAX_MESSAGE_LEN];
   static uint32_t time_checkpoint = 0;
-  //   delay(1000); // Wait 1 second between transmits, could also 'sleep' here!
-
-  // if (millis() - time_checkpoint > 200) {
-  //   static uint32_t prevState = LOW;
-  //   uint32_t newState = prevState == LOW ? HIGH : LOW;
-  //   digitalWrite(LED, newState);
-  //   prevState = newState;
-  //   time_checkpoint = millis();
-  // }
 
   sendBatteryPeriodically();
 
-  green_button.update();
-  red_button.update();
-
-  if (green_button.status.clicked) {
-    if (green_button.status.hold) {
-      Serial.println("hold");
-      sendFlag(1 << PACKET_HOLD_BIT_POS |
-               (green_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
-               GREEN_BUTTON_PACKET);
-    } else {
-      sendFlag(0 << PACKET_HOLD_BIT_POS |
-               (green_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
-               GREEN_BUTTON_PACKET);
-    }
-    Blink(LED, 50, 1);
-    Serial.printf("Green click: %d times\n", green_button.status.num_clicks);
-  }
-  if (red_button.status.clicked) {
-    if (red_button.status.hold) {
-      Serial.println("hold");
-      sendFlag(1 << PACKET_HOLD_BIT_POS |
-               (red_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
-               RED_BUTTON_PACKET);
-    } else {
-      sendFlag(0 << PACKET_HOLD_BIT_POS |
-               (red_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
-               RED_BUTTON_PACKET);
-    }
-    Blink(LED, 50, 1);
-    Serial.printf("Red click: %d times\n", red_button.status.num_clicks);
-  }
+  handle_two_buttons();
 
   // Now wait for a reply
   uint8_t len = sizeof(buff);
@@ -151,6 +113,7 @@ void Blink(byte pin, byte delay_ms, byte loops) {
 
 void sendFlag(uint8_t flag) {
   rf69.send(&flag, 1);
+  Blink(LED, 50, 1);
   // Serial.printf("%08x\n", flag);
 }
 
@@ -178,4 +141,84 @@ float getBattery() {
   measuredvbat /= 1024; // convert to voltage
   return measuredvbat;
   // Serial.print("VBat: " ); Serial.println(measuredvbat);
+}
+
+typedef enum {
+  TWO_BUTTONS_WAIT,
+  TWO_BUTTONS_CHECK_FOR_OTHER_HOLD,
+} two_buttons_state_t;
+
+void handle_two_buttons() {
+  static two_buttons_state_t state = TWO_BUTTONS_WAIT;
+  static unsigned long first_long_click;
+  static button_status_t original_status;
+  static Button *other_button;
+  green_button.update();
+  red_button.update();
+
+  if (green_button.status.clicked && !green_button.status.hold) {
+    sendFlag(0 << PACKET_HOLD_BIT_POS |
+             (green_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+             GREEN_BUTTON_PACKET);
+    Serial.printf("Green click: %d times\n", green_button.status.num_clicks);
+  }
+  if (red_button.status.clicked && !red_button.status.hold) {
+    sendFlag(0 << PACKET_HOLD_BIT_POS |
+             (red_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+             RED_BUTTON_PACKET);
+    Serial.printf("Red click: %d times\n", red_button.status.num_clicks);
+  }
+
+  switch (state) {
+  case TWO_BUTTONS_WAIT:
+    if (green_button.status.clicked && green_button.status.hold) {
+      if (red_button.status.clicked && red_button.status.hold) {
+        Serial.printf("Green click: %d times\n",
+                      green_button.status.num_clicks);
+        // long click
+        // Both buttons long clicked
+        sendFlag(1 << PACKET_HOLD_BIT_POS |
+                 (green_button.status.num_clicks & 0x3)
+                     << PACKET_NUM_CLICKS_POS |
+                 TWO_BUTTON_PACKET);
+        Serial.printf("Both hold: %d times\n", green_button.status.num_clicks);
+      } else {
+        first_long_click = millis();
+        original_status = green_button.status;
+        other_button = &red_button;
+        state = TWO_BUTTONS_CHECK_FOR_OTHER_HOLD;
+        Serial.printf("(Green hold): %d times\n",
+                      green_button.status.num_clicks);
+      }
+    } else if (red_button.status.clicked && red_button.status.hold) {
+      first_long_click = millis();
+      original_status = red_button.status;
+      other_button = &green_button;
+      state = TWO_BUTTONS_CHECK_FOR_OTHER_HOLD;
+      Serial.printf("(Red hold): %d times\n", red_button.status.num_clicks);
+    }
+    break;
+
+  case TWO_BUTTONS_CHECK_FOR_OTHER_HOLD:
+    if (millis() - first_long_click > 500) {
+      sendFlag(1 << PACKET_HOLD_BIT_POS |
+               (original_status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+               (other_button == &red_button ? GREEN_BUTTON_PACKET
+                                            : RED_BUTTON_PACKET));
+      state = TWO_BUTTONS_WAIT;
+      Serial.printf("%s hold: %d times\n",
+                    other_button == &red_button ? "Green" : "Red",
+                    original_status.num_clicks);
+    } else if (other_button->status.clicked && other_button->status.hold) {
+      sendFlag(1 << PACKET_HOLD_BIT_POS |
+               (original_status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
+               TWO_BUTTON_PACKET);
+      state = TWO_BUTTONS_WAIT;
+      Serial.printf("Both hold: %d times\n", original_status.num_clicks);
+    }
+    break;
+
+  default:
+    break;
+  }
 }

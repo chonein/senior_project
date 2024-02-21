@@ -9,11 +9,7 @@
 #define RFM69_RST 4
 #define LED 13
 
-#define BUTTON_GREEN_CLICK 0x10
-#define BUTTON_RED_CLICK 0x20
-#define BATTERY_FLAG 0x30
-#define BUTTON_RED_LONG_CLICK 0x40
-#define BUTTON_GREEN_LONG_CLICK 0x50
+#define BATTERY_FLAG 0xA0
 
 #define DEBUG 0
 

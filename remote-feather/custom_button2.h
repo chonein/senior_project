@@ -11,7 +11,7 @@
 // maximum number of multiple clicks. for now support up to triple click
 #define MAX_MULTICLICK 3
 #define DEBOUNCE_DUR 10
-#define LONG_PRESS_DUR 5000
+#define LONG_PRESS_DUR 2000
 
 typedef enum {
   WAIT_FOR_BUTTON_DOWN,
