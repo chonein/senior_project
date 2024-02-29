@@ -45,6 +45,8 @@ public:
     pinMode(pin, INPUT_PULLUP);
   }
 
+  bool is_clicked() { return !digitalRead(pin); }
+
   /**
    * @brief Button state machine
    *
@@ -52,7 +54,6 @@ public:
    * returned is number of times button was clicked
    */
   void update() {
-    // Serial.println("Button update");
     status.clicked = false;
 
     switch (state) {

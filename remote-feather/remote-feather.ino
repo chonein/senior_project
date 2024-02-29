@@ -1,8 +1,23 @@
 #include <RH_RF69.h>
 #include <SPI.h>
 
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
 // #include "custom_button.h"
 #include "custom_button2.h"
+
+#define WIRED_MODE 1
+
+#define customPrintf(...)                                                      \
+  if (!WIRED_MODE)                                                             \
+  Serial.printf(__VA_ARGS__)
+#define customPrintln(...)                                                     \
+  if (!WIRED_MODE)                                                             \
+  Serial.println(__VA_ARGS__)
+#define customPrint(...)                                                       \
+  if (!WIRED_MODE)                                                             \
+  Serial.print(__VA_ARGS__)
 
 #define RF69_FREQ 915.0
 
@@ -16,6 +31,7 @@
 #define VBATPIN A7
 
 #define BATTERY_FLAG 0xA0
+#define ACCEL_FLAG 0xA1
 
 #define RED_BUTTON_PACKET 0
 #define GREEN_BUTTON_PACKET 1
@@ -29,10 +45,13 @@
 
 // Singleton instance of the radio driver
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
+Adafruit_MPU6050 mpu;
 
 int16_t packetnum = 0; // packet counter, we increment per xmission
 Button green_button(BIG_GREEN_BUTTON_PIN);
 Button red_button(BIG_RED_BUTTON_PIN);
+
+bool mpu6050_enabled = false;
 
 void setup() {
   Serial.begin(115200);
@@ -43,8 +62,13 @@ void setup() {
   pinMode(RFM69_RST, OUTPUT);
   digitalWrite(RFM69_RST, LOW);
 
-  Serial.println("Feather RFM69 TX Test!");
-  Serial.println();
+  customPrintln("Feather RFM69 TX Test!");
+  customPrintln();
+
+  if (green_button.is_clicked()) {
+    mpu6050_enabled = true;
+    init_accel_gyro();
+  }
 
   // manual reset
   digitalWrite(RFM69_RST, HIGH);
@@ -53,15 +77,15 @@ void setup() {
   delay(10);
 
   if (!rf69.init()) {
-    Serial.println("RFM69 radio init failed");
+    customPrintln("RFM69 radio init failed");
     while (1)
       ;
   }
-  Serial.println("RFM69 radio init OK!");
+  customPrintln("RFM69 radio init OK!");
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM (for
   // low power module) No encryption
   if (!rf69.setFrequency(RF69_FREQ)) {
-    Serial.println("setFrequency failed");
+    customPrintln("setFrequency failed");
   }
 
   // If you are using a high power RF69 eg RFM69HW, you *must* set a Tx power
@@ -69,14 +93,9 @@ void setup() {
   rf69.setTxPower(
       14, true); // range from 14-20 for power, 2nd arg must be true for 69HCW
 
-  // The encryption key has to be the same as the one in the server
-  //   uint8_t key[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-  //                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-  //   rf69.setEncryptionKey(key);
-
-  Serial.print("RFM69 radio @");
-  Serial.print((int)RF69_FREQ);
-  Serial.println(" MHz");
+  customPrint("RFM69 radio @");
+  customPrint((int)RF69_FREQ);
+  customPrintln(" MHz");
 }
 
 void loop() {
@@ -87,17 +106,19 @@ void loop() {
 
   handle_two_buttons();
 
+  send_accel_gyro_periodically();
+
   // Now wait for a reply
   uint8_t len = sizeof(buff);
 
   if (rf69.available()) {
     // Should be a reply message for us now
     if (rf69.recv((uint8_t *)buff, &len)) {
-      Serial.print("Got a reply: ");
-      Serial.println((char *)buff);
+      customPrint("Got a reply: ");
+      customPrintln((char *)buff);
       Blink(LED, 50, 3); // blink LED 3 times, 50ms between blinks
     } else {
-      Serial.println("Receive failed");
+      customPrintln("Receive failed");
     }
   }
 }
@@ -113,8 +134,10 @@ void Blink(byte pin, byte delay_ms, byte loops) {
 
 void sendFlag(uint8_t flag) {
   rf69.send(&flag, 1);
+  if (WIRED_MODE) {
+    Serial.write(&flag, 1);
+  }
   Blink(LED, 50, 1);
-  // Serial.printf("%08x\n", flag);
 }
 
 void sendBatteryPeriodically() {
@@ -132,6 +155,9 @@ void sendBattery() {
   batteryPacket[0] = BATTERY_FLAG;
   memcpy(batteryPacket + 1, &measuredbat, sizeof(measuredbat));
   rf69.send(batteryPacket, sizeof(batteryPacket));
+  if (WIRED_MODE) {
+    Serial.write(batteryPacket, sizeof(batteryPacket));
+  }
 }
 
 float getBattery() {
@@ -140,7 +166,77 @@ float getBattery() {
   measuredvbat *= 3.3;  // Multiply by 3.3V, our reference voltage
   measuredvbat /= 1024; // convert to voltage
   return measuredvbat;
-  // Serial.print("VBat: " ); Serial.println(measuredvbat);
+}
+
+void init_accel_gyro() {
+  // Try to initialize!
+  if (!mpu.begin()) {
+    customPrintln("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  customPrintln("MPU6050 Found!");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_4_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+  delay(100);
+}
+
+int8_t convert_accel_range(float accel) {
+  int val = accel * 127.0 / (4.0 * SENSORS_GRAVITY_STANDARD);
+  if (val > 127) {
+    val = 127;
+  } else if (val < -128) {
+    val = -128;
+  }
+  return val;
+}
+
+void send_accel_gyro() {
+  uint8_t accel_packet[4];
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  int8_t conv_x = convert_accel_range(a.acceleration.x);
+  int8_t conv_y = convert_accel_range(a.acceleration.y);
+  int8_t conv_z = convert_accel_range(a.acceleration.z);
+  if (conv_x == 0 && conv_y == 0 && conv_z == 0) {
+    init_accel_gyro();
+    return;
+  }
+
+  customPrint("Acceleration X: ");
+  customPrint(conv_x);
+  customPrint(", Y: ");
+  customPrint(conv_y);
+  customPrint(", Z: ");
+  customPrint(conv_z);
+  customPrintln();
+
+  accel_packet[0] = ACCEL_FLAG;
+  accel_packet[1] = conv_x;
+  accel_packet[2] = conv_y;
+  accel_packet[3] = conv_z;
+  rf69.send(accel_packet, 4);
+  if (WIRED_MODE) {
+    Serial.write(accel_packet, 4);
+  }
+}
+
+void send_accel_gyro_periodically() {
+  if (!mpu6050_enabled) {
+    return;
+  }
+  const uint32_t send_period_ms = 200; // 10Hz => 100ms
+  static unsigned long last_sent_time = 0;
+
+  if (millis() - last_sent_time > send_period_ms) {
+    send_accel_gyro();
+    last_sent_time = millis();
+  }
 }
 
 typedef enum {
@@ -160,42 +256,41 @@ void handle_two_buttons() {
     sendFlag(0 << PACKET_HOLD_BIT_POS |
              (green_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
              GREEN_BUTTON_PACKET);
-    Serial.printf("Green click: %d times\n", green_button.status.num_clicks);
+    customPrintf("Green click: %d times\n", green_button.status.num_clicks);
   }
   if (red_button.status.clicked && !red_button.status.hold) {
     sendFlag(0 << PACKET_HOLD_BIT_POS |
              (red_button.status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
              RED_BUTTON_PACKET);
-    Serial.printf("Red click: %d times\n", red_button.status.num_clicks);
+    customPrintf("Red click: %d times\n", red_button.status.num_clicks);
   }
 
   switch (state) {
   case TWO_BUTTONS_WAIT:
     if (green_button.status.clicked && green_button.status.hold) {
       if (red_button.status.clicked && red_button.status.hold) {
-        Serial.printf("Green click: %d times\n",
-                      green_button.status.num_clicks);
+        customPrintf("Green click: %d times\n", green_button.status.num_clicks);
         // long click
         // Both buttons long clicked
         sendFlag(1 << PACKET_HOLD_BIT_POS |
                  (green_button.status.num_clicks & 0x3)
                      << PACKET_NUM_CLICKS_POS |
                  TWO_BUTTON_PACKET);
-        Serial.printf("Both hold: %d times\n", green_button.status.num_clicks);
+        customPrintf("Both hold: %d times\n", green_button.status.num_clicks);
       } else {
         first_long_click = millis();
         original_status = green_button.status;
         other_button = &red_button;
         state = TWO_BUTTONS_CHECK_FOR_OTHER_HOLD;
-        Serial.printf("(Green hold): %d times\n",
-                      green_button.status.num_clicks);
+        customPrintf("(Green hold): %d times\n",
+                     green_button.status.num_clicks);
       }
     } else if (red_button.status.clicked && red_button.status.hold) {
       first_long_click = millis();
       original_status = red_button.status;
       other_button = &green_button;
       state = TWO_BUTTONS_CHECK_FOR_OTHER_HOLD;
-      Serial.printf("(Red hold): %d times\n", red_button.status.num_clicks);
+      customPrintf("(Red hold): %d times\n", red_button.status.num_clicks);
     }
     break;
 
@@ -206,15 +301,15 @@ void handle_two_buttons() {
                (other_button == &red_button ? GREEN_BUTTON_PACKET
                                             : RED_BUTTON_PACKET));
       state = TWO_BUTTONS_WAIT;
-      Serial.printf("%s hold: %d times\n",
-                    other_button == &red_button ? "Green" : "Red",
-                    original_status.num_clicks);
+      customPrintf("%s hold: %d times\n",
+                   other_button == &red_button ? "Green" : "Red",
+                   original_status.num_clicks);
     } else if (other_button->status.clicked && other_button->status.hold) {
       sendFlag(1 << PACKET_HOLD_BIT_POS |
                (original_status.num_clicks & 0x3) << PACKET_NUM_CLICKS_POS |
                TWO_BUTTON_PACKET);
       state = TWO_BUTTONS_WAIT;
-      Serial.printf("Both hold: %d times\n", original_status.num_clicks);
+      customPrintf("Both hold: %d times\n", original_status.num_clicks);
     }
     break;
 
