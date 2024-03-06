@@ -4,14 +4,17 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 
+#define ACCEL_FLAG 0xA1
+
 Adafruit_MPU6050 mpu;
 
 void setup(void) {
+  pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(115200);
-  while (!Serial)
-    delay(10); // will pause Zero, Leonardo, etc until serial console opens
+  // while (!Serial)
+  //   delay(10); // will pause Zero, Leonardo, etc until serial console opens
 
-  Serial.println("Adafruit MPU6050 test!");
+  // Serial.println("Adafruit MPU6050 test!");
 
   // // Try to initialize!
   // if (!mpu.begin()) {
@@ -72,12 +75,12 @@ void loop() {
 void init_accel_gyro() {
   // Try to initialize!
   if (!mpu.begin()) {
-    Serial.println("Failed to find MPU6050 chip");
+    // Serial.println("Failed to find MPU6050 chip");
     while (1) {
       delay(10);
     }
   }
-  Serial.println("MPU6050 Found!");
+  // Serial.println("MPU6050 Found!");
 
   mpu.setAccelerometerRange(MPU6050_RANGE_4_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
@@ -86,8 +89,8 @@ void init_accel_gyro() {
   delay(100);
 }
 
-int8_t convert_accel_range(float accel) {
-  int val = accel * 127.0 / (4.0 * SENSORS_GRAVITY_STANDARD);
+int8_t map_to_int8_t(float num, float max_val) {
+  int val = num * 127.0 / max_val;
   if (val > 127) {
     val = 127;
   } else if (val < -128) {
@@ -97,20 +100,37 @@ int8_t convert_accel_range(float accel) {
 }
 
 void send_accel_gyro() {
+  const float max_gravity = 4.0 * SENSORS_GRAVITY_STANDARD;
+  uint8_t packet[7];
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  int8_t conv_x = convert_accel_range(a.acceleration.x);
-  int8_t conv_y = convert_accel_range(a.acceleration.y);
-  int8_t conv_z = convert_accel_range(a.acceleration.z);
+  packet[0] = ACCEL_FLAG;
+  packet[1] = map_to_int8_t(a.acceleration.y, max_gravity);
+  packet[2] = map_to_int8_t(a.acceleration.x, max_gravity);
+  packet[3] = map_to_int8_t(a.acceleration.z, max_gravity);
+  packet[4] = map_to_int8_t(g.gyro.x, max_gravity);
+  packet[5] = map_to_int8_t(g.gyro.z, max_gravity);
+  packet[6] = map_to_int8_t(g.gyro.y, max_gravity);
 
-  Serial.print("Acceleration X: ");
-  Serial.print(conv_x);
-  Serial.print(", Y: ");
-  Serial.print(conv_y);
-  Serial.print(", Z: ");
-  Serial.print(conv_z);
-  Serial.println();
+  if (packet[1] == 0 && packet[2] == 0 && packet[3] == 0) {
+    Blink(LED_BUILTIN, 50, 2);
+    init_accel_gyro();
+    return;
+  }
+
+  // customPrint("Acceleration X: ");
+  // customPrint(packet[0]);
+  // customPrint(", Y: ");
+  // customPrint(packet[1]);
+  // customPrint(", Z: ");
+  // customPrint(packet[2]);
+  // customPrintln();
+
+  // rf69.send(packet, 7);
+  // if (WIRED_MODE) {
+  Serial.write(packet, 7);
+  // }
 }
 
 void send_accel_gyro_periodically() {
@@ -120,5 +140,14 @@ void send_accel_gyro_periodically() {
   if (millis() - last_sent_time > send_period_ms) {
     send_accel_gyro();
     last_sent_time = millis();
+  }
+}
+
+void Blink(byte pin, byte delay_ms, byte loops) {
+  while (loops--) {
+    digitalWrite(pin, HIGH);
+    delay(delay_ms);
+    digitalWrite(pin, LOW);
+    delay(delay_ms);
   }
 }

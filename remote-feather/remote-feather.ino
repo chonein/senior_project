@@ -66,8 +66,11 @@ void setup() {
   customPrintln();
 
   if (green_button.is_clicked()) {
+    Blink(LED_BUILTIN, 50, 2);
     mpu6050_enabled = true;
     init_accel_gyro();
+  } else {
+    Blink(LED_BUILTIN, 50, 1);
   }
 
   // manual reset
@@ -111,16 +114,16 @@ void loop() {
   // Now wait for a reply
   uint8_t len = sizeof(buff);
 
-  if (rf69.available()) {
-    // Should be a reply message for us now
-    if (rf69.recv((uint8_t *)buff, &len)) {
-      customPrint("Got a reply: ");
-      customPrintln((char *)buff);
-      Blink(LED, 50, 3); // blink LED 3 times, 50ms between blinks
-    } else {
-      customPrintln("Receive failed");
-    }
-  }
+  // if (rf69.available()) {
+  //   // Should be a reply message for us now
+  //   if (rf69.recv((uint8_t *)buff, &len)) {
+  //     customPrint("Got a reply: ");
+  //     customPrintln((char *)buff);
+  //     Blink(LED, 50, 3); // blink LED 3 times, 50ms between blinks
+  //   } else {
+  //     customPrintln("Receive failed");
+  //   }
+  // }
 }
 
 void Blink(byte pin, byte delay_ms, byte loops) {
@@ -185,8 +188,8 @@ void init_accel_gyro() {
   delay(100);
 }
 
-int8_t convert_accel_range(float accel) {
-  int val = accel * 127.0 / (4.0 * SENSORS_GRAVITY_STANDARD);
+int8_t map_to_int8_t(float num, float max_val) {
+  int val = num * 127.0 / max_val;
   if (val > 127) {
     val = 127;
   } else if (val < -128) {
@@ -196,33 +199,36 @@ int8_t convert_accel_range(float accel) {
 }
 
 void send_accel_gyro() {
-  uint8_t accel_packet[4];
+  const float max_gravity = 4.0 * SENSORS_GRAVITY_STANDARD;
+  uint8_t packet[7];
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  int8_t conv_x = convert_accel_range(a.acceleration.x);
-  int8_t conv_y = convert_accel_range(a.acceleration.y);
-  int8_t conv_z = convert_accel_range(a.acceleration.z);
-  if (conv_x == 0 && conv_y == 0 && conv_z == 0) {
+  packet[0] = ACCEL_FLAG;
+  packet[1] = map_to_int8_t(a.acceleration.y, max_gravity);
+  packet[2] = map_to_int8_t(a.acceleration.x, max_gravity);
+  packet[3] = map_to_int8_t(a.acceleration.z, max_gravity);
+  packet[4] = map_to_int8_t(g.gyro.x, max_gravity);
+  packet[5] = map_to_int8_t(g.gyro.z, max_gravity);
+  packet[6] = map_to_int8_t(g.gyro.y, max_gravity);
+
+  if (packet[1] == 0 && packet[2] == 0 && packet[3] == 0) {
+    Blink(LED_BUILTIN, 50, 2);
     init_accel_gyro();
     return;
   }
 
   customPrint("Acceleration X: ");
-  customPrint(conv_x);
+  customPrint(packet[0]);
   customPrint(", Y: ");
-  customPrint(conv_y);
+  customPrint(packet[1]);
   customPrint(", Z: ");
-  customPrint(conv_z);
+  customPrint(packet[2]);
   customPrintln();
 
-  accel_packet[0] = ACCEL_FLAG;
-  accel_packet[1] = conv_x;
-  accel_packet[2] = conv_y;
-  accel_packet[3] = conv_z;
-  rf69.send(accel_packet, 4);
+  rf69.send(packet, 7);
   if (WIRED_MODE) {
-    Serial.write(accel_packet, 4);
+    Serial.write(packet, 7);
   }
 }
 
@@ -230,7 +236,7 @@ void send_accel_gyro_periodically() {
   if (!mpu6050_enabled) {
     return;
   }
-  const uint32_t send_period_ms = 200; // 10Hz => 100ms
+  const uint32_t send_period_ms = 100; // 10Hz => 100ms
   static unsigned long last_sent_time = 0;
 
   if (millis() - last_sent_time > send_period_ms) {
