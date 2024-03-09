@@ -79,28 +79,9 @@ void *processRfm69Data() {
   if (rf69.available()) {
     static char buff[RH_RF69_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buff);
-    if (rf69.recv((uint8_t *)buff, &len)) {
-      if (len > 0) {
-        uint8_t flag = buff[0];
-
-        switch (flag) {
-        case BATTERY_FLAG:
-          if (len == 5) {
-            float battery_level;
-            memcpy(&battery_level, buff + 1, sizeof(battery_level));
-            Serial.write(buff, len);
-            // Serial.print("VBat: ");
-            // Serial.println(battery_level);
-          }
-          Blink(LED, 50, 2);
-          break;
-
-        default:
-          Serial.write(buff, len);
-          Blink(LED, 50, 1);
-          break;
-        }
-      }
+    if (rf69.recv((uint8_t *)buff, &len) && len > 0) {
+      Serial.write(buff, len);
+      Blink(LED, 50, 1);
     }
   }
   return NULL;
