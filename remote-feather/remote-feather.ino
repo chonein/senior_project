@@ -103,17 +103,30 @@ void setup() {
 
 void loop() {
   static char buff[RH_RF69_MAX_MESSAGE_LEN];
-  static uint32_t time_checkpoint = 0;
+  static unsigned i = 0;
 
-  sendBatteryPeriodically();
+  // alternate turn so that we don't send multiple stuff over rf at same time
+  switch (i) {
+  case 0:
+    sendBatteryPeriodically();
+    break;
 
-  handle_two_buttons();
+  case 1:
+    handle_two_buttons();
+    break;
 
-  send_accel_gyro_periodically();
+  case 2:
+    send_accel_gyro_periodically();
+    break;
+
+  default:
+    break;
+  }
+
+  i = (i + 1) % 3;
 
   // Now wait for a reply
-  uint8_t len = sizeof(buff);
-
+  // uint8_t len = sizeof(buff);
   // if (rf69.available()) {
   //   // Should be a reply message for us now
   //   if (rf69.recv((uint8_t *)buff, &len)) {
